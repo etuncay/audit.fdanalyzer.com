@@ -1,0 +1,1 @@
+(self.webpackChunk_N_E=self.webpackChunk_N_E||[]).push([[5513],{5977:(e,s,l)=>{Promise.resolve().then(l.bind(l,7099))},7099:(e,s,l)=>{"use strict";l.r(s),l.d(s,{default:()=>r});var i=l(2311);l(2847);let r=()=>(0,i.jsx)("div",{children:(0,i.jsx)("h1",{children:"Bulgu Y\xf6netimi Mod\xfcl\xfc (3.4)"})})}},e=>{var s=s=>e(e.s=s);e.O(0,[5789,6020,7358],()=>s(5977)),_N_E=e.O()}]);

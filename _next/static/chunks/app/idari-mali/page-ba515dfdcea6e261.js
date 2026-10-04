@@ -1,0 +1,1 @@
+(self.webpackChunk_N_E=self.webpackChunk_N_E||[]).push([[1358],{404:(e,s,l)=>{"use strict";l.r(s),l.d(s,{default:()=>d});var r=l(2311);l(2847);let d=()=>(0,r.jsx)("div",{children:(0,r.jsx)("h1",{children:"İdari-Mali Mod\xfcl\xfc (3.6)"})})},2402:(e,s,l)=>{Promise.resolve().then(l.bind(l,404))}},e=>{var s=s=>e(e.s=s);e.O(0,[5789,6020,7358],()=>s(2402)),_N_E=e.O()}]);
