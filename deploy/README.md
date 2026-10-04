@@ -1,12 +1,10 @@
 # Ubuntu + nginx — audit.fdanalyzer.com
 
-Next.js static export (`out/`) tek sunucuda nginx ile yayınlanır.
+Statik HTML/JS/CSS (`index.html`, `_next/`, …) repo kökünde; nginx aynı dizini servis eder.
 
-| Alan adı | Sunucu yolu | nginx `root` |
-|----------|-------------|--------------|
-| `audit.fdanalyzer.com` | `/home/sites/audit.fdanalyzer.com` | `/home/sites/audit.fdanalyzer.com/out` |
-
-`next.config.ts`: `output: 'export'`, `trailingSlash: true` — sayfa URL'leri sondaki `/` ile açılır (ör. `/ana-giris-genel-ekranlar/dashboard/`).
+| Alan adı | Sunucu yolu (nginx `root`) |
+|----------|----------------------------|
+| `audit.fdanalyzer.com` | `/home/sites/audit.fdanalyzer.com` |
 
 ## Gereksinimler
 
@@ -14,54 +12,21 @@ Next.js static export (`out/`) tek sunucuda nginx ile yayınlanır.
 - DNS: `audit.fdanalyzer.com` → sunucu IP
 - SSH erişimi
 
-## Tek betik
-
-Tüm işlemler `deploy/audit.fdanalyzer.sh` üzerinden yapılır.
-
-### Sunucuda ilk kurulum
+## Betik komutları
 
 ```bash
-export GIT_REMOTE="https://github.com/KULLANICI/denetleme.git"  # veya yalnızca denet-app repo URL'si
-sudo mkdir -p /home/sites
-# İlk seferde repoyu kopyalayıp cd edin; yoksa setup GIT_REMOTE ile clone eder:
-cd /home/sites/audit.fdanalyzer.com   # clone / rsync sonrası
+sudo bash deploy/audit.fdanalyzer.sh setup   # ilk kurulum
+sudo bash deploy/audit.fdanalyzer.sh sync    # git pull + nginx reload
+sudo bash deploy/audit.fdanalyzer.sh https   # TLS (CERTBOT_EMAIL gerekli)
+bash deploy/audit.fdanalyzer.sh push user@HOST
+```
+
+### İlk kurulum örneği
+
+```bash
+export GIT_REMOTE="https://github.com/KULLANICI/audit.fdanalyzer.com.git"
 sudo GIT_REMOTE="$GIT_REMOTE" bash deploy/audit.fdanalyzer.sh setup
 ```
-
-Sunucudaki `/home/sites/audit.fdanalyzer.com` dizini **denet-app proje kökü** olmalı (`package.json`, `deploy/`, `src/` veya `app/` burada). Monorepo kullanıyorsanız `denet-app/` içeriğini bu path'e taşıyın veya ayrı repo olarak yayınlayın.
-
-Varsayılan `REPO_DIR`: `/home/sites/audit.fdanalyzer.com`
-
-### Sunucuda güncelleme (git pull + build)
-
-```bash
-cd /home/sites/audit.fdanalyzer.com
-sudo bash deploy/audit.fdanalyzer.sh sync
-```
-
-### Yerel makineden rsync + sunucuda build
-
-```bash
-cd /path/to/denet-app
-bash deploy/audit.fdanalyzer.sh push user@SUNUCU
-```
-
-## HTTPS (Let's Encrypt)
-
-DNS kaydı sunucuya işaret ettikten sonra:
-
-```bash
-sudo CERTBOT_EMAIL=admin@fdanalyzer.com bash deploy/audit.fdanalyzer.sh https
-```
-
-`sync` nginx şablonunu yazdıktan sonra mevcut sertifikayı `certbot install` ile geri yükler.
-
-## Dosyalar
-
-| Dosya | Açıklama |
-|-------|----------|
-| `deploy/audit.fdanalyzer.sh` | Kurulum, sync, https, push |
-| `deploy/nginx/audit.fdanalyzer.conf` | nginx site şablonu |
 
 ## Sorun giderme
 
@@ -69,8 +34,6 @@ sudo CERTBOT_EMAIL=admin@fdanalyzer.com bash deploy/audit.fdanalyzer.sh https
 sudo nginx -t
 sudo tail -f /var/log/nginx/audit.fdanalyzer.com.error.log
 ```
-
-404 alıyorsanız `out/` güncel mi kontrol edin: `sudo -u www-data npm run build` (proje kökünde).
 
 ## Güvenlik duvarı
 

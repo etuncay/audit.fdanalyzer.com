@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Denet App — audit.fdanalyzer.com (Next.js static export → out/)
+# audit.fdanalyzer.com — statik site (repo kökü → nginx root)
 #
 # Sunucu (ilk kurulum):  sudo bash deploy/audit.fdanalyzer.sh setup
 # Sunucu (güncelleme):   sudo bash deploy/audit.fdanalyzer.sh sync
@@ -7,7 +7,7 @@
 # Yerel → sunucu:        bash deploy/audit.fdanalyzer.sh push user@SUNUCU
 #
 # Ortam değişkenleri:
-#   REPO_DIR      — sunucudaki proje yolu (varsayılan: /home/sites/audit.fdanalyzer.com)
+#   REPO_DIR      — sunucudaki site yolu (varsayılan: /home/sites/audit.fdanalyzer.com)
 #   GIT_REMOTE    — git clone/pull adresi (setup/sync için)
 #   CERTBOT_EMAIL — Let's Encrypt e-posta (https için)
 #   CERT_NAME     — certbot sertifika adı (varsayılan: audit.fdanalyzer.com)
@@ -22,22 +22,21 @@ DOMAIN="${DOMAIN:-audit.fdanalyzer.com}"
 NGINX_AVAILABLE="/etc/nginx/sites-available/audit.fdanalyzer.conf"
 NGINX_ENABLED="/etc/nginx/sites-enabled/audit.fdanalyzer.conf"
 CERT_NAME="${CERT_NAME:-audit.fdanalyzer.com}"
-OUT_DIR="${REPO_DIR}/out"
 
 usage() {
   cat <<'EOF'
 Kullanım:
-  sudo bash deploy/audit.fdanalyzer.sh setup     Sunucuda nginx + Node + build (ilk kurulum)
-  sudo bash deploy/audit.fdanalyzer.sh sync      Sunucuda git pull + build + nginx reload
+  sudo bash deploy/audit.fdanalyzer.sh setup     Sunucuda nginx + statik site (ilk kurulum)
+  sudo bash deploy/audit.fdanalyzer.sh sync      Sunucuda git pull + nginx reload
   sudo bash deploy/audit.fdanalyzer.sh https     Let's Encrypt TLS (certbot --nginx)
-  bash deploy/audit.fdanalyzer.sh push USER@HOST Yerel repoyu rsync ile sunucuya gönder
+  bash deploy/audit.fdanalyzer.sh push USER@HOST Yerel dosyaları rsync ile sunucuya gönder
 
 HTTPS örneği:
   sudo CERTBOT_EMAIL=admin@fdanalyzer.com bash deploy/audit.fdanalyzer.sh https
 
 Ortam:
   REPO_DIR=/home/sites/audit.fdanalyzer.com
-  GIT_REMOTE=https://github.com/KULLANICI/denetleme.git
+  GIT_REMOTE=https://github.com/KULLANICI/repo.git
   CERTBOT_EMAIL=...
   CERT_NAME=audit.fdanalyzer.com
 EOF
@@ -70,21 +69,6 @@ ensure_certbot() {
   apt install -y certbot python3-certbot-nginx
 }
 
-ensure_node() {
-  if command -v node >/dev/null 2>&1; then
-    local major
-    major="$(node -p "process.versions.node.split('.')[0]")"
-    if [[ "${major}" -ge 18 ]]; then
-      return 0
-    fi
-  fi
-  echo "==> Node.js 20 kuruluyor..."
-  apt update
-  apt install -y ca-certificates curl gnupg
-  curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-  apt install -y nodejs
-}
-
 restore_https_if_present() {
   local renewal="/etc/letsencrypt/renewal/${CERT_NAME}.conf"
   if [[ ! -f "${renewal}" ]]; then
@@ -101,31 +85,16 @@ reload_nginx() {
 }
 
 fix_permissions() {
-  chown -R www-data:www-data "${REPO_DIR}/out"
-  find "${REPO_DIR}/out" -type d -exec chmod 755 {} \;
-  find "${REPO_DIR}/out" -type f -exec chmod 644 {} \;
+  chown -R www-data:www-data "${REPO_DIR}"
+  find "${REPO_DIR}" -type d -exec chmod 755 {} \;
+  find "${REPO_DIR}" -type f -exec chmod 644 {} \;
 }
 
-verify_out() {
-  if [[ ! -f "${OUT_DIR}/index.html" ]]; then
-    echo "HATA: ${OUT_DIR}/index.html yok. Önce build çalıştırın (npm run build)."
+verify_static_site() {
+  if [[ ! -f "${REPO_DIR}/index.html" ]]; then
+    echo "HATA: ${REPO_DIR}/index.html yok. Statik site dosyalarını bu dizine koyun veya git clone/pull yapın."
     exit 1
   fi
-}
-
-run_build() {
-  echo "==> npm ci + next build..."
-  cd "${REPO_DIR}"
-  if [[ -f package-lock.json ]]; then
-    sudo -u www-data npm ci
-  elif [[ -f pnpm-lock.yaml ]] && command -v pnpm >/dev/null 2>&1; then
-    sudo -u www-data pnpm install --frozen-lockfile
-    sudo -u www-data pnpm run build
-    return 0
-  else
-    sudo -u www-data npm install
-  fi
-  sudo -u www-data npm run build
 }
 
 cmd_setup() {
@@ -134,9 +103,8 @@ cmd_setup() {
   echo "==> Paketler kuruluyor..."
   apt update
   apt install -y nginx git rsync
-  ensure_node
 
-  echo "==> Repo dizini: ${REPO_DIR}"
+  echo "==> Site dizini: ${REPO_DIR}"
   mkdir -p "$(dirname "${REPO_DIR}")"
 
   if [[ ! -d "${REPO_DIR}/.git" ]]; then
@@ -148,21 +116,9 @@ cmd_setup() {
     git clone "${GIT_REMOTE}" "${REPO_DIR}"
   fi
 
-  if [[ ! -f "${REPO_DIR}/package.json" ]] && [[ -f "${LOCAL_REPO}/package.json" ]]; then
-    echo "==> Yerel dosyalar ${REPO_DIR} altına kopyalanıyor..."
-    rsync -a --delete \
-      --exclude '.git' \
-      --exclude 'node_modules' \
-      --exclude '.next' \
-      --exclude '.DS_Store' \
-      "${LOCAL_REPO}/" "${REPO_DIR}/"
-  fi
+  verify_static_site
 
-  chown -R www-data:www-data "${REPO_DIR}"
-  run_build
-  verify_out
-
-  echo "==> İzinler (out/)..."
+  echo "==> İzinler..."
   fix_permissions
 
   echo "==> nginx site config..."
@@ -175,8 +131,8 @@ cmd_setup() {
 
   echo ""
   echo "Kurulum tamamlandı."
-  echo "  Repo    : ${REPO_DIR}"
-  echo "  Web kökü: ${OUT_DIR}"
+  echo "  Dizin   : ${REPO_DIR}"
+  echo "  nginx root: ${REPO_DIR}"
   echo "  Config  : ${NGINX_AVAILABLE}"
   echo ""
   echo "Site: http://${DOMAIN}/"
@@ -229,8 +185,6 @@ cmd_sync() {
     exit 1
   fi
 
-  ensure_node
-
   if [[ -d "${REPO_DIR}/.git" ]]; then
     echo "==> Git pull..."
     cd "${REPO_DIR}"
@@ -239,15 +193,13 @@ cmd_sync() {
     echo "Uyarı: ${REPO_DIR}/.git yok; git pull atlandı."
   fi
 
-  chown -R www-data:www-data "${REPO_DIR}"
-  run_build
-  verify_out
+  verify_static_site
 
   echo "==> nginx config güncelleniyor..."
   install_nginx_config
   restore_https_if_present
 
-  echo "==> İzinler (out/)..."
+  echo "==> İzinler..."
   fix_permissions
 
   echo "==> nginx test + reload..."
@@ -266,13 +218,10 @@ cmd_push() {
   echo "==> rsync → ${target}:${REPO_DIR}/"
   rsync -avz --delete \
     --exclude '.git' \
-    --exclude 'node_modules' \
-    --exclude '.next' \
-    --exclude 'out' \
     --exclude '.DS_Store' \
     "${LOCAL_REPO}/" "${target}:${REPO_DIR}/"
 
-  echo "==> Sunucuda build + nginx reload..."
+  echo "==> Sunucuda sync..."
   ssh "${target}" "sudo bash '${REPO_DIR}/deploy/audit.fdanalyzer.sh' sync"
 
   echo "Push tamamlandı."
